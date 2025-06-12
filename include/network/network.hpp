@@ -10,7 +10,7 @@
 #include <custom_concepts.hpp>
 
 namespace NN{
-template<typename Activation, size_t NUM_LAYERS, typename T>
+template<typename Activation, size_t NUM_LAYERS, typename T = typename Activation::type>
 requires callable_with<Activation, T, T> && derivative_callable_with<Activation, T, T>
 class network {
 private:
@@ -43,7 +43,7 @@ public:
     {
         if(neuron_list.size() !=  NUM_LAYERS)
         {
-            throw std::invalid_argument("Layer size mismatch.");
+            throw std::invalid_argument("The number of layers does not match with the provided.");
         }
 
         std::copy(neuron_list.begin(), neuron_list.end(), neurons_per_layer.begin());

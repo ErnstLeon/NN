@@ -10,6 +10,9 @@ template<typename T>
 class ReLU
 {
 public:
+    
+    using type = T;
+    
     T operator()(T x) const
     {
         if(x > 0)

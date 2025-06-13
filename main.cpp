@@ -1,9 +1,6 @@
 #include<iostream>
 
-#include <activation.hpp>
-#include <custom_concepts.hpp>
-#include <network.hpp>
-#include <read_mnist.hpp>
+#include <neural_network.hpp>
 
 int main (int argc, char ** argv)
 {

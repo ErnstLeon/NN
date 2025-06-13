@@ -9,6 +9,7 @@
 !/data/*ubyte
 
 !/include/
+!/include/*.hpp
 !/include/learning/
 !/include/learning/*.hpp
 

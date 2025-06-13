@@ -7,8 +7,8 @@
 #include <random>
 #include <vector>
 
-#include <custom_concepts.hpp>
-#include <loss.hpp>
+#include "utility/custom_concepts.hpp"
+#include "learning/loss.hpp"
 
 namespace NN{
 template<typename Activation, size_t NUM_LAYERS, typename T = typename Activation::type>

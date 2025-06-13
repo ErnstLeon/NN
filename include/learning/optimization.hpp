@@ -4,7 +4,7 @@
 #include <cmath>
 #include <vector>
 
-template<typename T>
-adam 
+//template<typename T>
+//adam 
 
 #endif // OPTIMIZATION_H

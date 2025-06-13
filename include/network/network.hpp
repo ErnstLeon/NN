@@ -11,7 +11,7 @@
 
 namespace NN{
 template<typename Activation, size_t NUM_LAYERS, typename T = typename Activation::type>
-requires callable_with<Activation, T, T> && derivative_callable_with<Activation, T, T>
+requires callable_with<Activation, T, T> && derivative_callable_with<Activation, T, T> && (NUM_LAYERS >= 3)
 class network {
 private:
 
@@ -26,12 +26,11 @@ private:
     std::array<std::vector<T>, NUM_LAYERS - 1> weights{};
 
     void forward_pass(const std::vector<T> &, std::array<std::vector<T>, NUM_LAYERS - 1> &, 
-    std::array<std::vector<T>, NUM_LAYERS - 1> &);
+    std::array<std::vector<T>, NUM_LAYERS - 1> &) const;
 
     void backward_pass(const std::array<std::vector<T>, NUM_LAYERS - 1> &, 
-    const std::array<std::vector<T>, NUM_LAYERS - 1> &, const std::array<std::vector<T>, NUM_LAYERS - 1> &, 
-    std::array<std::vector<T>, NUM_LAYERS - 1> &, std::array<std::vector<T>, NUM_LAYERS - 1> &, 
-    const std::vector<T> &, const std::vector<T> &);
+    const std::array<std::vector<T>, NUM_LAYERS - 1> &, std::array<std::vector<T>, NUM_LAYERS - 1> &, 
+    std::array<std::vector<T>, NUM_LAYERS - 1> &, const std::vector<T> &, const std::vector<T> &) const;
 
     T compute_loss(const std::vector<T> &, const std::vector<T> &);
 
@@ -68,56 +67,116 @@ public:
         }
     };
 
-    void learn(const std::vector<T>&, const std::vector<T>&, size_t iterations = 1000, T step_size = 0.01);
+    void learn(const std::vector<std::pair<std::vector<T>, std::vector<T>>> &, size_t, size_t num_epochs = 1000, T step_size = 0.01);
     
     std::vector<T> evaluate(const std::vector<T> & input);
 };
 
 template<typename Activation, size_t NUM_LAYERS, typename T>
-requires callable_with<Activation, T, T> && derivative_callable_with<Activation, T, T>
+requires callable_with<Activation, T, T> && derivative_callable_with<Activation, T, T> && (NUM_LAYERS >= 3)
 void network<Activation, NUM_LAYERS, T>::learn(
-    const std::vector<T> & input, const std::vector<T> & true_output,
-    size_t iterations, T step_size)
+    const std::vector<std::pair<std::vector<T>, std::vector<T>>> & dataset_orig, 
+    size_t batch_size, size_t num_epochs, T step_size)
 {
-    if (input.size() != neurons_per_layer[0])
+    auto dataset = dataset_orig;
+
+    std::mt19937 gen(100);
+    size_t dataset_size = dataset.size();
+    size_t num_batches = (dataset_size + batch_size - 1) / batch_size;
+
+    for (size_t epoch = 0; epoch < num_epochs; ++epoch) 
     {
-        throw std::invalid_argument{"Input does not have the same size as input layer."};
-    }
+        std::shuffle(dataset.begin(), dataset.end(), gen);
 
-    if (true_output.size() != neurons_per_layer.back())
-    {
-        throw std::invalid_argument{"Output does not have the same size as output layer."};
-    }
+        for (size_t b = 0; b < num_batches; ++b) 
+        {
+            size_t current_batch_size = std::min(batch_size, dataset_size - b * batch_size);
 
-    std::array<std::vector<T>, NUM_LAYERS - 1> activations{};
-    std::array<std::vector<T>, NUM_LAYERS - 1> weighted_inputs{};
-    std::array<std::vector<T>, NUM_LAYERS - 1> deriv_biases{};
-    std::array<std::vector<T>, NUM_LAYERS - 1> deriv_weights{};
+            std::array<std::vector<T>, NUM_LAYERS - 1> deriv_biases{};
+            std::array<std::vector<T>, NUM_LAYERS - 1> deriv_weights{};
 
-    for (size_t i = 0; i < NUM_LAYERS - 1; ++i)
-    {
-        deriv_biases[i].resize(biases[i].size());
-        deriv_weights[i].resize(weights[i].size());
-    }
+            for (size_t i = 0; i < NUM_LAYERS - 1; ++i) {
+                deriv_biases[i].assign(biases[i].size(), static_cast<T>(0));
+                deriv_weights[i].assign(weights[i].size(), static_cast<T>(0));
+            }
 
-    for(size_t i = 0; i < iterations; ++i){
-        forward_pass(input, activations, weighted_inputs);
-        backward_pass(activations, weighted_inputs, weights, deriv_biases, deriv_weights, input, true_output);
+            #pragma omp parallel shared(deriv_biases, deriv_weights)
+            {
+                std::array<std::vector<T>, NUM_LAYERS - 1> thread_deriv_biases;
+                std::array<std::vector<T>, NUM_LAYERS - 1> thread_deriv_weights;
 
-        T learning_rate = step_size;
-        for (size_t layer = 0; layer < NUM_LAYERS - 1; ++layer) {
-        for (size_t i = 0; i < biases[layer].size(); ++i)
-            biases[layer][i] -= learning_rate * deriv_biases[layer][i];
+                for (size_t i = 0; i < NUM_LAYERS - 1; ++i) {
+                    thread_deriv_biases[i].assign(biases[i].size(), static_cast<T>(0));
+                    thread_deriv_weights[i].assign(weights[i].size(), static_cast<T>(0));
+                }
 
-        for (size_t i = 0; i < weights[layer].size(); ++i)
-            weights[layer][i] -= learning_rate * deriv_weights[layer][i];
+                #pragma omp for nowait
+                for (size_t sample = 0; sample < current_batch_size; ++sample) 
+                {
+                    size_t sample_index = b * batch_size + sample;
+
+                    const auto & input = dataset[sample_index].first;
+                    const auto & true_output = dataset[sample_index].second;
+
+                    if (input.size() != neurons_per_layer[0])
+                        throw std::invalid_argument{"Input does not match input layer size."};
+                    if (true_output.size() != neurons_per_layer.back())
+                        throw std::invalid_argument{"Output does not match output layer size."};
+
+                    std::array<std::vector<T>, NUM_LAYERS - 1> local_activations;
+                    std::array<std::vector<T>, NUM_LAYERS - 1> local_weighted_inputs;
+                    std::array<std::vector<T>, NUM_LAYERS - 1> local_deriv_biases;
+                    std::array<std::vector<T>, NUM_LAYERS - 1> local_deriv_weights;
+
+                    for (size_t i = 0; i < NUM_LAYERS - 1; ++i) {
+                        local_activations[i].resize(biases[i].size());
+                        local_weighted_inputs[i].resize(biases[i].size());
+                        local_deriv_biases[i].resize(biases[i].size());
+                        local_deriv_weights[i].resize(weights[i].size());
+                    }
+
+                    forward_pass(input, local_activations, local_weighted_inputs);
+                    backward_pass(local_activations, local_weighted_inputs,
+                                local_deriv_biases, local_deriv_weights,
+                                input, true_output);
+
+                    for (size_t layer = 0; layer < NUM_LAYERS - 1; ++layer) {
+                        for (size_t i = 0; i < biases[layer].size(); ++i)
+                            thread_deriv_biases[layer][i] += local_deriv_biases[layer][i];
+                        for (size_t i = 0; i < weights[layer].size(); ++i)
+                            thread_deriv_weights[layer][i] += local_deriv_weights[layer][i];
+                    }
+                }
+
+                #pragma omp critical
+                {
+                    for (size_t layer = 0; layer < NUM_LAYERS - 1; ++layer) {
+                        for (size_t i = 0; i < deriv_biases[layer].size(); ++i)
+                            deriv_biases[layer][i] += thread_deriv_biases[layer][i];
+                        for (size_t i = 0; i < deriv_weights[layer].size(); ++i)
+                            deriv_weights[layer][i] += thread_deriv_weights[layer][i];
+                    }
+                }
+            }
+
+            T inv_sample_size = T{1} / static_cast<T>(current_batch_size);
+
+            for (size_t layer = 0; layer < NUM_LAYERS - 1; ++layer) 
+            {
+                for (size_t i = 0; i < biases[layer].size(); ++i){
+                    biases[layer][i] -= step_size * inv_sample_size * deriv_biases[layer][i];
+                }
+
+                for (size_t i = 0; i < weights[layer].size(); ++i){
+                    weights[layer][i] -= step_size * inv_sample_size * deriv_weights[layer][i];
+                }
+            }
         }
     }
-    
 }
 
 template<typename Activation, size_t NUM_LAYERS, typename T>
-requires callable_with<Activation, T, T> && derivative_callable_with<Activation, T, T>
+requires callable_with<Activation, T, T> && derivative_callable_with<Activation, T, T> && (NUM_LAYERS >= 3)
 std::vector<T> network<Activation, NUM_LAYERS, T>::evaluate(const std::vector<T> & input)
 {
     if (input.size() != neurons_per_layer[0])
@@ -134,7 +193,7 @@ std::vector<T> network<Activation, NUM_LAYERS, T>::evaluate(const std::vector<T>
 
         std::vector<T> tmp_out(output_size);
 
-        #pragma omp parallel for shared(biases, tmp_out, tmp_vec, weights)
+//        #pragma omp parallel for shared(biases, tmp_out, tmp_vec, weights)
         for(size_t i = 0; i < output_size; ++i)
         {
             T sum = biases[layer][i];
@@ -153,7 +212,7 @@ std::vector<T> network<Activation, NUM_LAYERS, T>::evaluate(const std::vector<T>
     
     std::vector<T> output(output_size);
 
-    #pragma omp parallel for shared(biases, output, tmp_vec, weights)
+//    #pragma omp parallel for shared(biases, output, tmp_vec, weights)
     for(size_t i = 0; i < output_size; ++i)
     {
         T sum = biases[NUM_LAYERS - 2][i];
@@ -170,11 +229,11 @@ std::vector<T> network<Activation, NUM_LAYERS, T>::evaluate(const std::vector<T>
 }
 
 template<typename Activation, size_t NUM_LAYERS, typename T>
-requires callable_with<Activation, T, T> && derivative_callable_with<Activation, T, T>
+requires callable_with<Activation, T, T> && derivative_callable_with<Activation, T, T> && (NUM_LAYERS >= 3)
 void network<Activation, NUM_LAYERS, T>::forward_pass(
     const std::vector<T> & input, 
     std::array<std::vector<T>, NUM_LAYERS - 1> & activations, 
-    std::array<std::vector<T>, NUM_LAYERS - 1> & weighted_inputs)
+    std::array<std::vector<T>, NUM_LAYERS - 1> & weighted_inputs) const
 {
     std::vector<T> tmp_input{input};
     std::vector<T> tmp_output{biases[0]};
@@ -184,7 +243,7 @@ void network<Activation, NUM_LAYERS, T>::forward_pass(
         size_t input_size = tmp_input.size();
         size_t output_size = tmp_output.size();
 
-        #pragma omp parallel for shared(weights, tmp_input, tmp_output)
+//        #pragma omp parallel for shared(weights, tmp_input, tmp_output)
         for(size_t i = 0; i < output_size; ++i)
         {
             T sum = static_cast<T>(0);
@@ -197,7 +256,7 @@ void network<Activation, NUM_LAYERS, T>::forward_pass(
 
         weighted_inputs[layer] = tmp_output;
 
-        #pragma omp parallel for shared(tmp_output)
+//        #pragma omp parallel for shared(tmp_output)
         for(size_t i = 0; i < output_size; ++i)
         {
             tmp_output[i] = activation_func(tmp_output[i]);
@@ -213,7 +272,7 @@ void network<Activation, NUM_LAYERS, T>::forward_pass(
     size_t input_size = tmp_input.size();
     size_t output_size = tmp_output.size();
 
-    #pragma omp parallel for shared(tmp_input, tmp_output, weights)
+//    #pragma omp parallel for shared(tmp_input, tmp_output, weights)
     for(size_t i = 0; i < output_size; ++i)
     {
         T sum = static_cast<T>(0);
@@ -231,20 +290,20 @@ void network<Activation, NUM_LAYERS, T>::forward_pass(
 }
 
 template<typename Activation, size_t NUM_LAYERS, typename T>
-requires callable_with<Activation, T, T> && derivative_callable_with<Activation, T, T>
+requires callable_with<Activation, T, T> && derivative_callable_with<Activation, T, T> && (NUM_LAYERS >= 3)
 void network<Activation, NUM_LAYERS, T>::backward_pass(
     const std::array<std::vector<T>, NUM_LAYERS - 1> & activations, 
     const std::array<std::vector<T>, NUM_LAYERS - 1> & weighted_inputs,
-    const std::array<std::vector<T>, NUM_LAYERS - 1> & weights,
     std::array<std::vector<T>, NUM_LAYERS - 1> & deriv_biases, 
     std::array<std::vector<T>, NUM_LAYERS - 1> & deriv_weights,
-    const std::vector<T> & input, const std::vector<T> & true_output)
+    const std::vector<T> & input, const std::vector<T> & true_output) const
 {
-    size_t input_size = activations[NUM_LAYERS - 3].size();
-    size_t output_size = activations[NUM_LAYERS - 2].size();
+    size_t input_size = neurons_per_layer[NUM_LAYERS - 2];
+    size_t output_size = neurons_per_layer[NUM_LAYERS - 1];
 
     deriv_biases[NUM_LAYERS - 2] = activations[NUM_LAYERS - 2];
 
+//    #pragma omp parallel for shared(activations, deriv_biases, deriv_weights, true_output)
     for(size_t i = 0; i < output_size; ++i){
 
         deriv_biases[NUM_LAYERS - 2][i] -= true_output[i];
@@ -257,15 +316,15 @@ void network<Activation, NUM_LAYERS, T>::backward_pass(
 
     for(size_t layer = NUM_LAYERS - 3; layer > 0; --layer){
 
-        input_size = activations[layer - 1].size();
-        output_size = activations[layer].size();
+        input_size = neurons_per_layer[layer];
+        output_size = neurons_per_layer[layer + 1];
 
-        #pragma omp parallel for shared(activations, deriv_biases, deriv_weights, weights, weighted_inputs)
+//        #pragma omp parallel for shared(activations, deriv_biases, deriv_weights, weights, weighted_inputs)
         for(size_t i = 0; i < output_size; ++i){
 
             T tmp_value{};
 
-            for(size_t k = 0; k < deriv_biases[layer + 1].size(); ++k){
+            for(size_t k = 0; k < neurons_per_layer[layer + 2]; ++k){
                 tmp_value += weights[layer + 1][k * output_size + i] * deriv_biases[layer + 1][k];
             }
 
@@ -279,14 +338,15 @@ void network<Activation, NUM_LAYERS, T>::backward_pass(
 
     }
 
-    input_size = input.size();
-    output_size = activations[0].size();
+    input_size = neurons_per_layer[0];
+    output_size = neurons_per_layer[1];
 
-    #pragma omp parallel for shared(deriv_biases, deriv_weights, input, weights, weighted_inputs)
+//    #pragma omp parallel for shared(deriv_biases, deriv_weights, input, weights, weighted_inputs)
     for(size_t i = 0; i < output_size; ++i){
 
         T tmp_value{};
-        for(size_t k = 0; k < deriv_biases[1].size(); ++k){
+
+        for(size_t k = 0; k < neurons_per_layer[2]; ++k){
             tmp_value += weights[1][k * output_size + i] * deriv_biases[1][k];
         }
 
@@ -299,8 +359,9 @@ void network<Activation, NUM_LAYERS, T>::backward_pass(
 }
 
 template<typename Activation, size_t NUM_LAYERS, typename T>
-requires callable_with<Activation, T, T> && derivative_callable_with<Activation, T, T>
-T network<Activation, NUM_LAYERS, T>::compute_loss(const std::vector<T> & input, const std::vector<T> & output)
+requires callable_with<Activation, T, T> && derivative_callable_with<Activation, T, T> && (NUM_LAYERS >= 3)
+T network<Activation, NUM_LAYERS, T>::compute_loss(
+    const std::vector<T> & input, const std::vector<T> & output)
 {
     return cross_entropy_loss(input, output);
 }

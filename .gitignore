@@ -1,4 +1,5 @@
 *
+
 !.gitignore
 !.gitlab-ci.yml
 !*.cpp
@@ -7,9 +8,15 @@
 !/data/
 !/data/*ubyte
 
-!/inlcude/learning/*.hpp
-!/inlcude/network/*.hpp
-!/inlcude/utility/*.hpp
+!/include/
+!/include/learning/
+!/include/learning/*.hpp
+
+!/include/network/
+!/include/network/*.hpp
+
+!/include/utility/
+!/include/utility/*.hpp
 
 
 

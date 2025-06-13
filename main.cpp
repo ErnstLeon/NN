@@ -34,7 +34,7 @@ int main (int argc, char ** argv)
     auto dataset_train = prepare_dataset<T>(images_train, labels_train);
     auto dataset_test = prepare_dataset<T>(images_test, labels_test);
 
-    NN::network<NN::ReLU<float>, 4, float> net(NN::ReLU<float>(), {rows_train * cols_train, 256, 256, 10}, true);
+    NN::network<NN::ReLU<float>, 4, float> net({rows_train * cols_train, 256, 256, 10}, true);
 
     T train_error = net.learn(dataset_train, 64, 10, 0.01);
     T test_error = net.assess(dataset_test);
@@ -44,13 +44,15 @@ int main (int argc, char ** argv)
     std::cout << "test error: " << test_error << std::endl;
     std::cout << std::endl;
 
-    auto label = net.evaluate(dataset_test[0].first);
+    size_t sample_id = 1;
+
+    auto label = net.evaluate(dataset_test[sample_id].first);
 
     auto max_iter = std::max_element(label.begin(), label.end());
     size_t value = std::distance(label.begin(), max_iter);
 
-    auto max_iter_ = std::max_element(dataset_test[0].second.begin(), dataset_test[0].second.end());
-    size_t value_ = std::distance(dataset_test[0].second.begin(), max_iter_);
+    auto max_iter_ = std::max_element(dataset_test[sample_id].second.begin(), dataset_test[sample_id].second.end());
+    size_t value_ = std::distance(dataset_test[sample_id].second.begin(), max_iter_);
 
     std::cout << "modell output: " << value << std::endl;
     std::cout << "true category: " << value_ << std::endl;
@@ -58,7 +60,7 @@ int main (int argc, char ** argv)
     std::cout << std::endl;
     for(int i = 0; i < rows_test; ++i){
         for(int j = 0; j < cols_test; ++j){
-            float val = dataset_test[0].first[i * cols_test + j];
+            float val = dataset_test[sample_id].first[i * cols_test + j];
             std::cout << (val > 0.5f ? '#' : '.') << " ";
         }
         std::cout << std::endl;

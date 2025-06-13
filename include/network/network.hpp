@@ -16,7 +16,7 @@ requires callable_with<Activation, T, T> && derivative_callable_with<Activation,
 class network {
 private:
 
-    const Activation activation_func;
+    const Activation activation_func{};
     
     std::array<size_t, NUM_LAYERS> neurons_per_layer{};
 
@@ -37,8 +37,7 @@ private:
 
 public: 
 
-    network(const Activation & activation_func, std::initializer_list<size_t> neuron_list, 
-    bool rnd = false)
+    network(std::initializer_list<size_t> neuron_list, bool rnd = false)
     : activation_func{activation_func}
     {
         if(neuron_list.size() !=  NUM_LAYERS)

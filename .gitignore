@@ -4,6 +4,9 @@
 !*.cpp
 !README.md
 
+!/data/
+!/data/*ubyte
+
 !/inlcude/learning/*.hpp
 !/inlcude/network/*.hpp
 !/inlcude/utility/*.hpp

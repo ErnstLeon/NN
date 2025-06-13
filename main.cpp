@@ -9,34 +9,63 @@ int main (int argc, char ** argv)
 {
     using T = float;
 
-    auto f = [](float a){return 1;};
+    size_t num_images_train, num_images_test, rows_train, cols_train, rows_test, cols_test;
+    auto images_train = load_mnist_images<T>("./data/train-images.idx3-ubyte", 
+                                            num_images_train, rows_train, cols_train);
+    auto images_test = load_mnist_images<T>("./data/t10k-images.idx3-ubyte",
+                                            num_images_test, rows_test, cols_test);
 
-    NN::network<NN::ReLU<T>, 5> m(NN::ReLU<T>(), {2,100,100,100,3}, true);
+    size_t num_labels_train, num_labels_test;
+    auto labels_train = load_mnist_labels<T>("./data/train-labels.idx1-ubyte", num_labels_train);
+    auto labels_test = load_mnist_labels<T>("./data/t10k-labels.idx1-ubyte", num_labels_test);
 
-    size_t sample_size = 3;
+    if (num_images_train != num_labels_train) {
+        std::cerr << "Images and labels count mismatch in training data\n";
+        return 1;
+    }
 
-    std::vector<std::pair<std::vector<T>, std::vector<T>>> dataset{};
-    dataset.reserve(sample_size);
+    if (num_images_test != num_labels_test) {
+        std::cerr << "Images and labels count mismatch in test data\n";
+        return 1;
+    }
 
-    dataset.emplace_back(std::vector<T>{0,1},std::vector<T>{0,0,1});
-    dataset.emplace_back(std::vector<T>{1,1},std::vector<T>{0,1,0});
-    dataset.emplace_back(std::vector<T>{1,0},std::vector<T>{1,0,0});
+    if (rows_train !=  rows_test || cols_train != cols_test) {
+        std::cerr << "Mismatch between training and test data\n";
+        return 1;
+    }
 
-    m.learn(dataset, 3, 1000);
+    auto dataset_train = prepare_dataset<T>(images_train, labels_train);
+    auto dataset_test = prepare_dataset<T>(images_test, labels_test);
 
-    auto test = m.evaluate(std::vector<float>{{1,0}});
-    for(auto & i : test) std::cout << i << std::endl;
+    NN::network<NN::ReLU<float>, 4, float> net(NN::ReLU<float>(), {rows_train * cols_train, 256, 256, 10}, true);
+
+    T train_error = net.learn(dataset_train, 64, 10, 0.01);
+    T test_error = net.assess(dataset_test);
+
+    std::cout << std::endl;
+    std::cout << "training error: " << train_error << std::endl;
+    std::cout << "test error: " << test_error << std::endl;
     std::cout << std::endl;
 
-    auto test_ = m.evaluate(std::vector<float>{{0,1}});
-    for(auto & i : test_) std::cout << i << std::endl;
-    std::cout << std::endl;
+    auto label = net.evaluate(dataset_test[0].first);
 
-    auto test__ = m.evaluate(std::vector<float>{{1,1}});
-    for(auto & i : test__) std::cout << i << std::endl;
-    std::cout << std::endl;
+    auto max_iter = std::max_element(label.begin(), label.end());
+    size_t value = std::distance(label.begin(), max_iter);
 
-    auto test___ = m.evaluate(std::vector<float>{{100,0}});
-    for(auto & i : test___) std::cout << i << std::endl;
+    auto max_iter_ = std::max_element(dataset_test[0].second.begin(), dataset_test[0].second.end());
+    size_t value_ = std::distance(dataset_test[0].second.begin(), max_iter_);
+
+    std::cout << "modell output: " << value << std::endl;
+    std::cout << "true category: " << value_ << std::endl;
+
     std::cout << std::endl;
+    for(int i = 0; i < rows_test; ++i){
+        for(int j = 0; j < cols_test; ++j){
+            float val = dataset_test[0].first[i * cols_test + j];
+            std::cout << (val > 0.5f ? '#' : '.') << " ";
+        }
+        std::cout << std::endl;
+    }
+
+    return 0;
 }

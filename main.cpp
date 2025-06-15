@@ -54,7 +54,7 @@ int main (int argc, char ** argv)
     auto max_iter_ = std::max_element(dataset_test[sample_id].second.begin(), dataset_test[sample_id].second.end());
     size_t value_ = std::distance(dataset_test[sample_id].second.begin(), max_iter_);
 
-    std::cout << "modell output: " << value << std::endl;
+    std::cout << "modell output: " << value << " with certainty of: " << *max_iter << std::endl;
     std::cout << "true category: " << value_ << std::endl;
 
     std::cout << std::endl;

@@ -37,7 +37,27 @@ public:
 };
 
 template<typename T>
-inline void softmax(std::vector<T>& input) {
+inline std::vector<T> softmax(std::vector<T>& input) 
+{    
+    std::vector<T> output(input.size());
+
+    T max_val = *std::max_element(input.begin(), input.end());
+
+    T sum = 0.0;
+    for (size_t i = 0; i < input.size(); ++i) {
+        output[i] = std::exp(input[i] - max_val);
+        sum += output[i];
+    }
+
+    for (T& val : output) {
+        val /= sum;
+    }
+
+    return output;
+}
+
+template<typename T>
+inline void softmax_inplace(std::vector<T>& input) {
     
     T max_val = *std::max_element(input.begin(), input.end());
 
@@ -52,6 +72,7 @@ inline void softmax(std::vector<T>& input) {
         val /= sum;
     }
 }
+
 }
 
 #endif // ACTIVATION_FUNC_H

@@ -21,6 +21,7 @@ NN::network<activation_function<datatype>, number_of_layers> network({neurons_pe
 - `datatype` is usually `float` or `double` and used throughout the network as storrage type.
 - `neurons_per_layer` is a `std::array<size_t, number_of_layers>`, defining the number of neurons in each layer.
 - If `random_initalitzation == true` (default), the weights and biases are initialized randomly.
+
 :warning: The first layer must match the number of input features, and the last layer must match the number of output classes.
 
 #### Train the Network
@@ -89,7 +90,7 @@ This example demonstrates:
 The model is available in `models/MNIST_Sigmoid_4_Layers.out`
 
 ```cpp
-g++-15 -I./include -std=c++20 -O3 -fopenmp (optional) -o main main.cpp
+g++ -I./include -std=c++20 -O3 -fopenmp (optional) -o main main.cpp
 ```
 
 ### Requirements
@@ -97,13 +98,21 @@ g++-15 -I./include -std=c++20 -O3 -fopenmp (optional) -o main main.cpp
 - C++20 or later
 - OpenMP (optional, for parallel training)
 
+:warning: add `-fexperimental-library` when using `clang` as 'par_unseq' in 'std::execution' is not yet supported (apparently)
+
+```cpp
+g++ -I./include -std=c++20 -O3 -fexperimental-library -fopenmp (only if supported) -o main main.cpp
+```
+
 ### Parallelization (optional)
 
 Training uses OpenMP to parallelize gradient computations per sample within each batch.
 
+:warning: use `export OMP_NUM_THREADS=` to adjust the number of threads to your system.
+
 ### Mathematical Details
 
-##### Forward Pass
+#### Forward Pass
 
 For each layer $l$, the output is computed as:
 

@@ -3,9 +3,13 @@
 
 #include <algorithm>
 #include <array>
+#include <cstring>
 #include <execution>
+#include <fstream>
+#include <iostream>
 #include <numeric>
 #include <random>
+#include <string>
 #include <vector>
 
 #include "../learning/loss.hpp"
@@ -40,9 +44,11 @@ private:
     const std::array<std::vector<T>, NUM_LAYERS - 1> &, std::array<std::vector<T>, NUM_LAYERS - 1> &, 
     std::array<std::vector<T>, NUM_LAYERS - 1> &, const std::vector<T> &, const std::vector<T> &) const;
 
-    T compute_loss(const std::vector<T> &, const std::vector<T> &);
+    T compute_loss(const std::vector<T> &, const std::vector<T> &) const;
 
 public: 
+
+    network() = default;
 
     network(std::initializer_list<size_t> neuron_list, bool rnd = false, Debug_Mode debug_mode = Debug_Mode::Release)
     : activation_func{activation_func}, debug_mode{debug_mode}
@@ -76,9 +82,12 @@ public:
     };
 
     T learn(const std::vector<std::pair<std::vector<T>, std::vector<T>>> &, size_t, size_t num_epochs = 1000, T step_size = 0.01);
-    T assess(const std::vector<std::pair<std::vector<T>, std::vector<T>>> &);
+    T assess(const std::vector<std::pair<std::vector<T>, std::vector<T>>> &) const;
     
-    std::vector<T> evaluate(const std::vector<T> & input);
+    std::vector<T> evaluate(const std::vector<T> & input) const;
+
+    void store(const std::string &) const;
+    void load(const std::string &);
 };
 
 template<typename Activation, size_t NUM_LAYERS, typename T>
@@ -101,8 +110,6 @@ T network<Activation, NUM_LAYERS, T>::learn(
     size_t dataset_size = dataset.size();
     size_t num_batches = (dataset_size + batch_size - 1) / batch_size;
 
-    T train_error;
-
     std::array<std::vector<T>, NUM_LAYERS - 1> deriv_biases{};
     std::array<std::vector<T>, NUM_LAYERS - 1> deriv_weights{};
 
@@ -111,10 +118,10 @@ T network<Activation, NUM_LAYERS, T>::learn(
         deriv_weights[i].assign(weights[i].size(), static_cast<T>(0));
     }
 
+    T train_error = static_cast<T>(0);
+
     for (size_t epoch = 0; epoch < num_epochs; ++epoch) 
     {
-        train_error = static_cast<T>(0);
-
         std::shuffle(dataset.begin(), dataset.end(), gen);
 
         for (size_t b = 0; b < num_batches; ++b) 
@@ -126,7 +133,7 @@ T network<Activation, NUM_LAYERS, T>::learn(
                 std::fill(deriv_weights[i].begin(), deriv_weights[i].end(), static_cast<T>(0));
             }
 
-            #pragma omp parallel shared(deriv_biases, deriv_weights) reduction(+ : train_error)
+            #pragma omp parallel shared(deriv_biases, deriv_weights)
             {
                 std::array<std::vector<T>, NUM_LAYERS - 1> thread_deriv_biases;
                 std::array<std::vector<T>, NUM_LAYERS - 1> thread_deriv_weights;
@@ -166,8 +173,6 @@ T network<Activation, NUM_LAYERS, T>::learn(
                         for (size_t i = 0; i < weights[layer].size(); ++i)
                             thread_deriv_weights[layer][i] += local_deriv_weights[layer][i];
                     }
-
-                    train_error += compute_loss(local_activations.back(), true_output);
                 }
 
                 #pragma omp critical
@@ -190,7 +195,7 @@ T network<Activation, NUM_LAYERS, T>::learn(
             }
         }
 
-        train_error /= static_cast<T>(dataset_size);
+        train_error = assess(dataset_orig);
         std::cout << "current epoch: " << epoch << " training error: " << train_error << std::endl;
     }
 
@@ -200,13 +205,15 @@ T network<Activation, NUM_LAYERS, T>::learn(
 template<typename Activation, size_t NUM_LAYERS, typename T>
 requires callable_with<Activation, T, T> && derivative_callable_with<Activation, T, T> && (NUM_LAYERS >= 3)
 T network<Activation, NUM_LAYERS, T>::assess(
-    const std::vector<std::pair<std::vector<T>, std::vector<T>>> & dataset)
+    const std::vector<std::pair<std::vector<T>, std::vector<T>>> & dataset) const
 {
     size_t dataset_size = dataset.size();
     T test_error = static_cast<T>(0);
 
-    for (const auto & [sample, label] : dataset) 
+    #pragma omp parallel for reduction(+:test_error)
+    for (size_t i = 0; i < dataset.size(); ++i)
     {
+        const auto & [sample, label] = dataset[i];
         auto model_out = evaluate(sample);
         test_error += compute_loss(model_out, label);
     }
@@ -216,7 +223,7 @@ T network<Activation, NUM_LAYERS, T>::assess(
 
 template<typename Activation, size_t NUM_LAYERS, typename T>
 requires callable_with<Activation, T, T> && derivative_callable_with<Activation, T, T> && (NUM_LAYERS >= 3)
-std::vector<T> network<Activation, NUM_LAYERS, T>::evaluate(const std::vector<T> & input)
+std::vector<T> network<Activation, NUM_LAYERS, T>::evaluate(const std::vector<T> & input) const
 {
     if (input.size() != neurons_per_layer[0])
     {
@@ -386,9 +393,78 @@ void network<Activation, NUM_LAYERS, T>::backward_pass(
 template<typename Activation, size_t NUM_LAYERS, typename T>
 requires callable_with<Activation, T, T> && derivative_callable_with<Activation, T, T> && (NUM_LAYERS >= 3)
 T network<Activation, NUM_LAYERS, T>::compute_loss(
-    const std::vector<T> & input, const std::vector<T> & output)
+    const std::vector<T> & input, const std::vector<T> & output) const
 {
     return cross_entropy_loss(input, output);
+}
+
+template<typename Activation, size_t NUM_LAYERS, typename T>
+requires callable_with<Activation, T, T> && derivative_callable_with<Activation, T, T> && (NUM_LAYERS >= 3)
+void network<Activation, NUM_LAYERS, T>::store(const std::string & filename) const
+{
+    std::ofstream output(filename, std::ios::binary);
+    if (!output) throw std::runtime_error("Cannot open file " + filename);
+
+    const char magic[4] = {'N', 'N', 'E', 'T'};
+    uint8_t type_flag = std::is_same_v<T, float> ? 0 : 1;
+
+    output.write(magic, 4);
+    output.write(reinterpret_cast<const char*>(&type_flag), sizeof(type_flag));
+
+    size_t num_layers = NUM_LAYERS;
+    output.write(reinterpret_cast<const char*>(&num_layers), sizeof(num_layers));
+    output.write(reinterpret_cast<const char*>(neurons_per_layer.data()), NUM_LAYERS * sizeof(size_t));
+
+    for(size_t layer = 0; layer < NUM_LAYERS - 1; ++layer)
+    {
+        output.write(reinterpret_cast<const char*>(weights[layer].data()), weights[layer].size() * sizeof(T));
+        output.write(reinterpret_cast<const char*>(biases[layer].data()), biases[layer].size() * sizeof(T));
+    }
+}
+
+template<typename Activation, size_t NUM_LAYERS, typename T>
+requires callable_with<Activation, T, T> && derivative_callable_with<Activation, T, T> && (NUM_LAYERS >= 3)
+void network<Activation, NUM_LAYERS, T>::load(const std::string& filename)
+{
+    std::ifstream input(filename, std::ios::binary);
+    if (!input) throw std::runtime_error("Cannot open file " + filename);
+
+    char magic[4];
+    input.read(magic, 4);
+    if (memcmp(magic, "NNET", 4) != 0)
+        throw std::runtime_error("Invalid file format: missing magic number");
+
+    uint8_t file_type_flag;
+    input.read(reinterpret_cast<char*>(&file_type_flag), sizeof(file_type_flag));
+
+    constexpr uint8_t this_type_flag = std::is_same_v<T, float> ? 0 : 1;
+    if (file_type_flag != this_type_flag)
+        throw std::runtime_error("Type mismatch: file stores a different floating point type.");
+
+    size_t num_layers;
+    input.read(reinterpret_cast<char*>(&num_layers), sizeof(num_layers));
+
+    if (num_layers != NUM_LAYERS)
+        throw std::runtime_error("Network layer count mismatch");
+
+    input.read(reinterpret_cast<char*>(neurons_per_layer.data()), NUM_LAYERS * sizeof(size_t));
+
+    num_input_neurons = neurons_per_layer.front();
+    num_output_neurons = neurons_per_layer.back();
+    max_neurons = *std::max_element(neurons_per_layer.begin(), neurons_per_layer.end());
+
+    for (size_t layer = 0; layer < NUM_LAYERS - 1; ++layer)
+    {
+        size_t weight_count = neurons_per_layer[layer + 1] * neurons_per_layer[layer];
+        size_t bias_count = neurons_per_layer[layer + 1];
+
+        weights[layer].resize(weight_count);
+        biases[layer].resize(bias_count);
+
+        input.read(reinterpret_cast<char*>(weights[layer].data()), weight_count * sizeof(T));
+        input.read(reinterpret_cast<char*>(biases[layer].data()), bias_count * sizeof(T));
+
+    }
 }
 }
 

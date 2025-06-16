@@ -8,6 +8,9 @@
 !/data/
 !/data/*ubyte
 
+!/models/
+!/models/*.out
+
 !/include/
 !/include/*.hpp
 !/include/learning/

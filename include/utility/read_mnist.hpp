@@ -73,6 +73,7 @@ std::vector<std::vector<T>> load_mnist_images(const std::string &filename, size_
 
 template<typename T>
 std::vector<unsigned char> load_mnist_labels(const std::string &filename, size_t &num_labels) {
+    
     std::ifstream file(filename, std::ios::binary);
     if (!file)
         throw std::runtime_error("Cannot open file " + filename);

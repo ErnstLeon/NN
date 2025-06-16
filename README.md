@@ -1,93 +1,162 @@
-# NeuralNetwork
+# Neural Network (NN)
 
+This document provides a brief explanation of the **Neural Network** implemented here.
+The model is designed for **classification** of input vectors into one of several classes (e.g., recognizing handwritten digits from 0 to 9).
 
+## How to use
 
-## Getting started
+This program lets you train a fully connected neural network, allowing you to set the number of layers and neurons per layer. It also lets you store your trained model or load pretrained ones.
 
-To make it easy for you to get started with GitLab, here's a list of recommended next steps.
+While you can choose an activation function for the hidden layers, the activation function for the last layer is set to be the **softmax** function, and the loss function is set to the **cross-entropy** loss.
 
-Already a pro? Just edit this README.md and make it your own. Want to make it easy? [Use the template at the bottom](#editing-this-readme)!
+### Initializing and Training a Neural Network
 
-## Add your files
+#### Initialize the Network
 
-- [ ] [Create](https://docs.gitlab.com/ee/user/project/repository/web_editor.html#create-a-file) or [upload](https://docs.gitlab.com/ee/user/project/repository/web_editor.html#upload-a-file) files
-- [ ] [Add files using the command line](https://docs.gitlab.com/topics/git/add_files/#add-files-to-a-git-repository) or push an existing Git repository with the following command:
-
-```
-cd existing_repo
-git remote add origin http://leonraspberry/gitlab/Leon/neuralnetwork.git
-git branch -M main
-git push -uf origin main
+```cpp
+NN::network<activation_function<datatype>, number_of_layers> network({neurons_per_layer}, random_initalitzation)
 ```
 
-## Integrate with your tools
+- `activation_function` can be either `NN::ReLU` or `NN::Sigmoid` for the hidden layers.
+- `datatype` is usually `float` or `double` and used throughout the network as storrage type.
+- `neurons_per_layer` is a `std::array<size_t, number_of_layers>`, defining the number of neurons in each layer.
+- If `random_initalitzation == true` (default), the weights and biases are initialized randomly.
+:warning: The first layer must match the number of input features, and the last layer must match the number of output classes.
 
-- [ ] [Set up project integrations](http://leonraspberry/gitlab/Leon/neuralnetwork/-/settings/integrations)
+#### Train the Network
 
-## Collaborate with your team
+```cpp
+train_error = network.learn(dataset_train, batch_size, number_of_epochs, learning_rate);
+```
 
-- [ ] [Invite team members and collaborators](https://docs.gitlab.com/ee/user/project/members/)
-- [ ] [Create a new merge request](https://docs.gitlab.com/ee/user/project/merge_requests/creating_merge_requests.html)
-- [ ] [Automatically close issues from merge requests](https://docs.gitlab.com/ee/user/project/issues/managing_issues.html#closing-issues-automatically)
-- [ ] [Enable merge request approvals](https://docs.gitlab.com/ee/user/project/merge_requests/approvals/)
-- [ ] [Set auto-merge](https://docs.gitlab.com/user/project/merge_requests/auto_merge/)
+- `train_error`: the training error (cross-entropy loss) after the last optimization step.
+- `dataset_train`: a `std::vector<std::pair<std::vector<T>, std::vector<T>>>` of inputs and one-hot encoded labels.
+- `Parameters`:
+    - `batch_size`: number of training samples per batch
+    - `number_of_epochs`: how many times the full dataset is passed through the network
+    - `learning_rate`: step size for updating weights during training
 
-## Test and Deploy
+#### Evaluate Performance
 
-Use the built-in continuous integration in GitLab.
+```cpp
+test_error = network.assess(dataset_test);
+```
 
-- [ ] [Get started with GitLab CI/CD](https://docs.gitlab.com/ee/ci/quick_start/)
-- [ ] [Analyze your code for known vulnerabilities with Static Application Security Testing (SAST)](https://docs.gitlab.com/ee/user/application_security/sast/)
-- [ ] [Deploy to Kubernetes, Amazon EC2, or Amazon ECS using Auto Deploy](https://docs.gitlab.com/ee/topics/autodevops/requirements.html)
-- [ ] [Use pull-based deployments for improved Kubernetes management](https://docs.gitlab.com/ee/user/clusters/agent/)
-- [ ] [Set up protected environments](https://docs.gitlab.com/ee/ci/environments/protected_environments.html)
+- `test_error` the average error on the test dataset.
+- `dataset_test`: a `std::vector<std::pair<std::vector<T>, std::vector<T>>>` of input-label pairs.
 
-***
+#### Make Predictions
 
-# Editing this README
+```cpp
+label = network.evaluate(sample);
+```
 
-When you're ready to make this README your own, just edit this file and use the handy template below (or feel free to structure it however you want - this is just a starting point!). Thanks to [makeareadme.com](https://www.makeareadme.com/) for this template.
+- `label`: the predicted class probabilities as a vector (softmax output).
+- `sample`: a single input as `std::vector<T>`.
 
-## Suggestions for a good README
+#### Example (e.g. MNIST)
+```cpp
+NN::network<NN::Sigmoid<float>, 4> network({784, 100, 100, 10}, true);
 
-Every project is different, so consider which of these sections apply to yours. The sections used in the template are suggestions for most open source projects. Also keep in mind that while a README can be too long and detailed, too long is better than too short. If you think your README is too long, consider utilizing another form of documentation rather than cutting out information.
+float train_error = network.learn(dataset_train, 32, 25, 0.01);
+float test_error = network.assess(dataset_test);
 
-## Name
-Choose a self-explaining name for your project.
+std::vector<float> label = network.evaluate(sample);
+```
 
-## Description
-Let people know what your project can do specifically. Provide context and add a link to any reference visitors might be unfamiliar with. A list of Features or a Background subsection can also be added here. If there are alternatives to your project, this is a good place to list differentiating factors.
+#### Storing and Loading a trained model
+```cpp
+network.store("model.out");
 
-## Badges
-On some READMEs, you may see small images that convey metadata, such as whether or not all the tests are passing for the project. You can use Shields to add some to your README. Many services also have instructions for adding a badge.
+NN::network<NN::Sigmoid<float>, 4> network{};
+network.load("model.nn");
+```
+These function store and load the biases and weight matrices for all layers.
 
-## Visuals
-Depending on what you are making, it can be a good idea to include screenshots or even a video (you'll frequently see GIFs rather than actual videos). Tools like ttygif can help, but check out Asciinema for a more sophisticated method.
+### Full Example
 
-## Installation
-Within a particular ecosystem, there may be a common way of installing things, such as using Yarn, NuGet, or Homebrew. However, consider the possibility that whoever is reading your README is a novice and would like more guidance. Listing specific steps helps remove ambiguity and gets people to using your project as quickly as possible. If it only runs in a specific context like a particular programming language version or operating system or has dependencies that have to be installed manually, also add a Requirements subsection.
+A complete example of training a neural network using the MNIST dataset can be found in `main.cpp`.
 
-## Usage
-Use examples liberally, and show the expected output if you can. It's helpful to have inline the smallest example of usage that you can demonstrate, while providing links to more sophisticated examples if they are too long to reasonably include in the README.
+This example demonstrates:
 
-## Support
-Tell people where they can go to for help. It can be any combination of an issue tracker, a chat room, an email address, etc.
+- Initializing the network
+- Loading the dataset
+- Training the model
+- Evaluating its performance
+- Making predictions
+- Saving the trained model
 
-## Roadmap
-If you have ideas for releases in the future, it is a good idea to list them in the README.
+The model is available in `models/MNIST_Sigmoid_4_Layers.out`
 
-## Contributing
-State if you are open to contributions and what your requirements are for accepting them.
+```cpp
+g++-15 -I./include -std=c++20 -O3 -fopenmp (optional) -o main main.cpp
+```
 
-For people who want to make changes to your project, it's helpful to have some documentation on how to get started. Perhaps there is a script that they should run or some environment variables that they need to set. Make these steps explicit. These instructions could also be useful to your future self.
+### Requirements
 
-You can also document commands to lint the code or run tests. These steps help to ensure high code quality and reduce the likelihood that the changes inadvertently break something. Having instructions for running tests is especially helpful if it requires external setup, such as starting a Selenium server for testing in a browser.
+- C++20 or later
+- OpenMP (optional, for parallel training)
 
-## Authors and acknowledgment
-Show your appreciation to those who have contributed to the project.
+### Parallelization (optional)
 
-## License
-For open source projects, say how it is licensed.
+Training uses OpenMP to parallelize gradient computations per sample within each batch.
 
-## Project status
-If you have run out of energy or time for your project, put a note at the top of the README saying that development has slowed down or stopped completely. Someone may choose to fork your project or volunteer to step in as a maintainer or owner, allowing your project to keep going. You can also make an explicit request for maintainers.
+### Mathematical Details
+
+##### Forward Pass
+
+For each layer $l$, the output is computed as:
+
+```math
+z^{(l)} = W^{(l)} a^{(l-1)} + b^{(l)} \\
+a^{(l)} = \sigma(z^{(l)})
+```
+
+Where:
+
+- $W^{(l)}$: weight matrix of layer $l$ 
+- $b^{(l)}$: bias vector of layer $l$ 
+- $\sigma$: activation function (ReLU or Sigmoid)  
+- $a^{(l)}$: activation output of layer $l$  
+- $a^{(0)}$: input vector to the network
+
+The last layer uses the **softmax** function:
+
+```math
+\text{softmax}(z_i) = \frac{e^{z_i}}{\sum_j e^{z_j}}
+```
+
+#### Loss Function
+
+The network uses the **cross-entropy** loss:
+
+```math
+L = - \sum_i y_i \log(\hat{y}_i)
+```
+
+Where:
+
+- $y_i$: true label (one-hot encoded)  
+- $\hat{y}_i$: predicted probability from softmax
+
+#### Backpropagation
+
+Gradients of the weights and biases are computed using the chain rule:
+
+```math
+\delta^{(l)} = \left(W^{(l+1)}\right)^T \delta^{(l+1)} \odot \sigma'(z^{(l)})
+```
+
+```math
+\frac{\partial L}{\partial W^{(l)}} = \delta^{(l)} \left(a^{(l-1)}\right)^T
+```
+
+```math
+\frac{\partial L}{\partial b^{(l)}} = \delta^{(l)}
+```
+
+Where:
+
+- $\delta^{(l)}$: error term of layer $l$ 
+- $\odot$: element-wise (Hadamard) product  
+- $\sigma'(z^{(l)})$: derivative of activation function

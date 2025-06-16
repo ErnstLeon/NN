@@ -34,7 +34,7 @@ int main (int argc, char ** argv)
     auto dataset_train = prepare_dataset<T>(images_train, labels_train);
     auto dataset_test = prepare_dataset<T>(images_test, labels_test);
 
-    NN::network<NN::ReLU<float>, 4, float> net({rows_train * cols_train, 256, 256, 10}, true);
+    NN::network<NN::Sigmoid<float>, 4, float> net({rows_train * cols_train, 256, 256, 10}, true);
 
     T train_error = net.learn(dataset_train, 64, 10, 0.01);
     T test_error = net.assess(dataset_test);

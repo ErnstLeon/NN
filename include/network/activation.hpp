@@ -37,6 +37,24 @@ public:
 };
 
 template<typename T>
+class Sigmoid
+{
+public:
+    using type = T;
+
+    T operator()(T x) const
+    {
+        return static_cast<T>(1) / (static_cast<T>(1) + std::exp(-x));
+    }
+
+    T derivative(T x) const
+    {
+        T sx = (*this)(x);
+        return sx * (static_cast<T>(1) - sx);
+    }
+};
+
+template<typename T>
 inline std::vector<T> softmax(std::vector<T>& input) 
 {    
     std::vector<T> output(input.size());

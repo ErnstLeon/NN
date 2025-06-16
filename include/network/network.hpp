@@ -8,8 +8,11 @@
 #include <random>
 #include <vector>
 
-#include "../utility/custom_concepts.hpp"
 #include "../learning/loss.hpp"
+#include "../learning/optimization.hpp"
+
+#include "../utility/custom_concepts.hpp"
+#include "../utility/debug.hpp"
 
 namespace NN
 {
@@ -18,6 +21,7 @@ requires callable_with<Activation, T, T> && derivative_callable_with<Activation,
 class network {
 private:
 
+    Debug_Mode debug_mode{Debug_Mode::Release};
     const Activation activation_func{};
     
     std::array<size_t, NUM_LAYERS> neurons_per_layer{};
@@ -40,8 +44,8 @@ private:
 
 public: 
 
-    network(std::initializer_list<size_t> neuron_list, bool rnd = false)
-    : activation_func{activation_func}
+    network(std::initializer_list<size_t> neuron_list, bool rnd = false, Debug_Mode debug_mode = Debug_Mode::Release)
+    : activation_func{activation_func}, debug_mode{debug_mode}
     {
         if(neuron_list.size() !=  NUM_LAYERS)
         {
@@ -83,6 +87,14 @@ T network<Activation, NUM_LAYERS, T>::learn(
     const std::vector<std::pair<std::vector<T>, std::vector<T>>> & dataset_orig, 
     size_t batch_size, size_t num_epochs, T step_size)
 {
+    for(const auto & [input, true_output] : dataset_orig)
+    {
+        if (input.size() != neurons_per_layer[0])
+            throw std::invalid_argument{"Input does not match input layer size."};
+        if (true_output.size() != neurons_per_layer.back())
+            throw std::invalid_argument{"Output does not match output layer size."};
+    }
+
     auto dataset = dataset_orig;
 
     std::mt19937 gen(100);
@@ -143,11 +155,6 @@ T network<Activation, NUM_LAYERS, T>::learn(
 
                     const auto & input = dataset[sample_index].first;
                     const auto & true_output = dataset[sample_index].second;
-
-                    if (input.size() != neurons_per_layer[0])
-                        throw std::invalid_argument{"Input does not match input layer size."};
-                    if (true_output.size() != neurons_per_layer.back())
-                        throw std::invalid_argument{"Output does not match output layer size."};
 
                     forward_pass(input, local_activations, local_weighted_inputs);
                     backward_pass(local_activations, local_weighted_inputs, local_deriv_biases, 

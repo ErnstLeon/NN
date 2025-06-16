@@ -8,6 +8,7 @@
 #include "./network/network.hpp"
 
 #include "./utility/custom_concepts.hpp"
+#include "./utility/debug.hpp"
 #include "./utility/read_mnist.hpp"
 
 #endif // NEURAL_NETWORK_H

@@ -5,7 +5,8 @@
 #include <cmath>
 #include <vector>
 
-namespace NN{
+namespace NN
+{
 template<typename T>
 class ReLU
 {

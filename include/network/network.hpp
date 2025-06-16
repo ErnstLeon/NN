@@ -51,7 +51,7 @@ public:
     network() = default;
 
     network(std::initializer_list<size_t> neuron_list, bool rnd = false, Debug_Mode debug_mode = Debug_Mode::Release)
-    : activation_func{activation_func}, debug_mode{debug_mode}
+    : debug_mode{debug_mode}
     {
         if(neuron_list.size() !=  NUM_LAYERS)
         {
@@ -119,6 +119,9 @@ T network<Activation, NUM_LAYERS, T>::learn(
     }
 
     T train_error = static_cast<T>(0);
+
+    train_error = assess(dataset_orig);
+    std::cout << "initial training error: " << train_error << std::endl;
 
     for (size_t epoch = 0; epoch < num_epochs; ++epoch) 
     {

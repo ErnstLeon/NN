@@ -6,6 +6,7 @@ int main (int argc, char ** argv)
 {
     using T = float;
 
+    // loading train and test data set
     size_t num_images_train, num_images_test, rows_train, cols_train, rows_test, cols_test;
     auto images_train = load_mnist_images<T>("./data/train-images.idx3-ubyte", 
                                             num_images_train, rows_train, cols_train);
@@ -34,19 +35,27 @@ int main (int argc, char ** argv)
     auto dataset_train = prepare_dataset<T>(images_train, labels_train);
     auto dataset_test = prepare_dataset<T>(images_test, labels_test);
 
-    NN::network<NN::Sigmoid<float>, 4, float> net({rows_train * cols_train, 256, 256, 10}, true);
+    // initialising network
+    NN::network<NN::Sigmoid<float>, 4> network({rows_train * cols_train, 256, 256, 10}, true);
 
-    T train_error = net.learn(dataset_train, 64, 10, 0.01);
-    T test_error = net.assess(dataset_test);
+    // training
+    T train_error = network.learn(dataset_train, 32, 25, 0.01);
+    T test_error = network.assess(dataset_test);
+    network.store("./models/MNIST_Sigmoid_4_Layers.out");
 
     std::cout << std::endl;
     std::cout << "training error: " << train_error << std::endl;
     std::cout << "test error: " << test_error << std::endl;
     std::cout << std::endl;
 
-    size_t sample_id = 1;
+    // loading pretrained model
+    // NN::network<NN::Sigmoid<float>, 4> network{};
+    // network.load("./models/MNIST_Sigmoid_4_Layers.out");
 
-    auto label = net.evaluate(dataset_test[sample_id].first);
+    // evaluating the first sample in test data set as example
+    size_t sample_id = 0;
+
+    auto label = network.evaluate(dataset_test[sample_id].first);
 
     auto max_iter = std::max_element(label.begin(), label.end());
     size_t value = std::distance(label.begin(), max_iter);
@@ -57,6 +66,7 @@ int main (int argc, char ** argv)
     std::cout << "modell output: " << value << " with certainty of: " << *max_iter << std::endl;
     std::cout << "true category: " << value_ << std::endl;
 
+    // print the input vector (written digit for demonstration)
     std::cout << std::endl;
     for(int i = 0; i < rows_test; ++i){
         for(int j = 0; j < cols_test; ++j){

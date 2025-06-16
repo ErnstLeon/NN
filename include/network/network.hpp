@@ -11,7 +11,8 @@
 #include "../utility/custom_concepts.hpp"
 #include "../learning/loss.hpp"
 
-namespace NN{
+namespace NN
+{
 template<typename Activation, size_t NUM_LAYERS, typename T = typename Activation::type>
 requires callable_with<Activation, T, T> && derivative_callable_with<Activation, T, T> && (NUM_LAYERS >= 3)
 class network {
@@ -177,13 +178,8 @@ T network<Activation, NUM_LAYERS, T>::learn(
 
             for (size_t layer = 0; layer < NUM_LAYERS - 1; ++layer) 
             {
-                for (size_t i = 0; i < biases[layer].size(); ++i){
-                    biases[layer][i] -= step_size * inv_sample_size * deriv_biases[layer][i];
-                }
-
-                for (size_t i = 0; i < weights[layer].size(); ++i){
-                    weights[layer][i] -= step_size * inv_sample_size * deriv_weights[layer][i];
-                }
+                gradient_descent_step(biases[layer], deriv_biases[layer], inv_sample_size, step_size);
+                gradient_descent_step(weights[layer], deriv_weights[layer], inv_sample_size, step_size);
             }
         }
 

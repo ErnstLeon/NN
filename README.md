@@ -70,7 +70,7 @@ std::vector<float> label = network.evaluate(sample);
 network.store("model.out");
 
 NN::network<NN::Sigmoid<float>, 4> network{};
-network.load("model.nn");
+network.load("model.out");
 ```
 These function store and load the biases and weight matrices for all layers.
 

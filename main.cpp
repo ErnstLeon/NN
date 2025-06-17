@@ -39,7 +39,7 @@ int main (int argc, char ** argv)
     NN::network<NN::Sigmoid<float>, 4> network({rows_train * cols_train, 256, 256, 10}, true);
 
     // training
-    T train_error = network.learn(dataset_train, 32, 25, 0.01);
+    T train_error = network.learn(dataset_train, 32, 50, 0.01);
     T test_error = network.assess(dataset_test);
     network.store("./models/MNIST_Sigmoid_4_Layers.out");
 

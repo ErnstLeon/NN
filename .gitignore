@@ -22,6 +22,10 @@
 !/include/utility/
 !/include/utility/*.hpp
 
+!/test/
+!/test/*cpp
+!/test/meson.build
+
 
 
 

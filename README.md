@@ -90,7 +90,7 @@ This example demonstrates:
 The model is available in `models/MNIST_Sigmoid_4_Layers.out`
 
 ```cpp
-g++ -I./include -std=c++20 -O3 -fopenmp (optional) -o main main.cpp
+g++ -I../include -std=c++20 -O3 -Wall -march=native -fopenmp (only if supported) -o main main.cpp
 ```
 
 ### Requirements
@@ -101,7 +101,7 @@ g++ -I./include -std=c++20 -O3 -fopenmp (optional) -o main main.cpp
 :warning: add `-fexperimental-library` when using `clang` as 'par_unseq' in 'std::execution' is not yet supported (apparently)
 
 ```cpp
-g++ -I./include -std=c++20 -O3 -fexperimental-library -fopenmp (only if supported) -o main main.cpp
+g++ -I../include -std=c++20 -O3 -Wall -march=native -fexperimental-library -fopenmp (only if supported) -o main main.cpp
 ```
 
 ### Parallelization (optional)

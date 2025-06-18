@@ -2,7 +2,6 @@
 
 !.gitignore
 !.gitlab-ci.yml
-!*.cpp
 !README.md
 
 !/data/
@@ -25,6 +24,9 @@
 !/test/
 !/test/*cpp
 !/test/meson.build
+
+!/example/
+!/example/*.cpp
 
 
 

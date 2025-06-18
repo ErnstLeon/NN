@@ -76,7 +76,7 @@ These function store and load the biases and weight matrices for all layers.
 
 ### Full Example
 
-A complete example of training a neural network using the MNIST dataset can be found in `main.cpp`.
+A complete example of training a neural network using the MNIST dataset can be found in `example/main.cpp`.
 
 This example demonstrates:
 

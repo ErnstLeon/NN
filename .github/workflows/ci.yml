@@ -1,0 +1,35 @@
+# .github/workflows/ci.yml
+name: C++ Test Workflow
+
+on: [push, pull_request]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v3
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y meson ninja-build gcc g++
+
+      - name: Setup and build with Meson
+        working-directory: ./test
+        run: |
+          mkdir -p subprojects
+          meson wrap install gtest
+          meson setup builddir
+
+      - name: Run tests
+        working-directory: ./test/builddir
+        run: meson test --logbase junit
+
+      - name: Upload JUnit test report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: junit-report
+          path: test/builddir/meson-logs/junit.txt

@@ -110,9 +110,9 @@ Training uses OpenMP to parallelize gradient computations per sample within each
 
 :warning: use `export OMP_NUM_THREADS=` to adjust the number of threads to your system.
 
-### Mathematical Details
+## Mathematical Details
 
-#### Forward Pass
+### Forward Pass
 
 For each layer $l$, the output is computed as:
 
@@ -135,7 +135,7 @@ The last layer uses the **softmax** function:
 \text{softmax}(z_i) = \frac{e^{z_i}}{\sum_j e^{z_j}}
 ```
 
-#### Loss Function
+### Loss Function
 
 The network uses the **cross-entropy** loss:
 
@@ -148,7 +148,7 @@ Where:
 - $y_i$: true label (one-hot encoded)  
 - $\hat{y}_i$: predicted probability from softmax
 
-#### Backpropagation
+### Backpropagation
 
 Gradients of the weights and biases are computed using the chain rule:
 

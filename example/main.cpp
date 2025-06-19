@@ -1,6 +1,6 @@
 #include<iostream>
 
-#include <neural_network.hpp>
+#include "neural_network.hpp"
 
 int main (int argc, char ** argv)
 {
@@ -8,14 +8,14 @@ int main (int argc, char ** argv)
 
     // loading train and test data set
     size_t num_images_train, num_images_test, rows_train, cols_train, rows_test, cols_test;
-    auto images_train = load_mnist_images<T>("./data/train-images.idx3-ubyte", 
+    auto images_train = load_mnist_images<T>("../data/train-images.idx3-ubyte", 
                                             num_images_train, rows_train, cols_train);
-    auto images_test = load_mnist_images<T>("./data/t10k-images.idx3-ubyte",
+    auto images_test = load_mnist_images<T>("../data/t10k-images.idx3-ubyte",
                                             num_images_test, rows_test, cols_test);
 
     size_t num_labels_train, num_labels_test;
-    auto labels_train = load_mnist_labels<T>("./data/train-labels.idx1-ubyte", num_labels_train);
-    auto labels_test = load_mnist_labels<T>("./data/t10k-labels.idx1-ubyte", num_labels_test);
+    auto labels_train = load_mnist_labels<T>("../data/train-labels.idx1-ubyte", num_labels_train);
+    auto labels_test = load_mnist_labels<T>("../data/t10k-labels.idx1-ubyte", num_labels_test);
 
     if (num_images_train != num_labels_train) {
         std::cerr << "Images and labels count mismatch in training data\n";
@@ -41,7 +41,7 @@ int main (int argc, char ** argv)
     // training
     T train_error = network.learn(dataset_train, 32, 50, 0.01);
     T test_error = network.assess(dataset_test);
-    network.store("./models/MNIST_Sigmoid_4_Layers.out");
+    network.store("../models/MNIST_Sigmoid_4_Layers.out");
 
     std::cout << std::endl;
     std::cout << "training error: " << train_error << std::endl;
@@ -50,7 +50,7 @@ int main (int argc, char ** argv)
 
     // loading pretrained model
     // NN::network<NN::Sigmoid<float>, 4> network{};
-    // network.load("./models/MNIST_Sigmoid_4_Layers.out");
+    // network.load("../models/MNIST_Sigmoid_4_Layers.out");
 
     // evaluating the first sample in test data set as example
     size_t sample_id = 0;
@@ -68,8 +68,8 @@ int main (int argc, char ** argv)
 
     // print the input vector (written digit for demonstration)
     std::cout << std::endl;
-    for(int i = 0; i < rows_test; ++i){
-        for(int j = 0; j < cols_test; ++j){
+    for(size_t i = 0; i < rows_test; ++i){
+        for(size_t j = 0; j < cols_test; ++j){
             float val = dataset_test[sample_id].first[i * cols_test + j];
             std::cout << (val > 0.5f ? '#' : '.') << " ";
         }

@@ -36,6 +36,7 @@ private:
 
     std::array<std::vector<T>, NUM_LAYERS - 1> biases{};
     std::array<std::vector<T>, NUM_LAYERS - 1> weights{};
+    std::array<std::vector<T>, NUM_LAYERS - 1> transposed_weights{};
 
     void forward_pass(const std::vector<T> &, std::array<std::vector<T>, NUM_LAYERS - 1> &, 
     std::array<std::vector<T>, NUM_LAYERS - 1> &) const;
@@ -68,6 +69,7 @@ public:
         {
             biases[layer].resize(neurons_per_layer[layer + 1]);
             weights[layer].resize(neurons_per_layer[layer] * neurons_per_layer[layer + 1]);
+            transposed_weights[layer].resize(neurons_per_layer[layer] * neurons_per_layer[layer + 1]);
         }
 
         if(rnd){
@@ -77,6 +79,18 @@ public:
             {
                 std::generate(biases[layer].begin(), biases[layer].end(), [&](){return dist(gen);});
                 std::generate(weights[layer].begin(), weights[layer].end(), [&](){return dist(gen);});
+            }
+
+            for(size_t layer = 0; layer < NUM_LAYERS - 1; ++layer)
+            {
+                size_t input_size = neurons_per_layer[layer];
+                size_t output_size = neurons_per_layer[layer + 1];
+
+                for (size_t i = 0; i < output_size; ++i) {
+                    for (size_t j = 0; j < input_size; ++j) {
+                        transposed_weights[layer][j * output_size + i] = weights[layer][i * input_size + j];
+                    }
+                }
             }
         }
     };
@@ -191,10 +205,24 @@ T network<Activation, NUM_LAYERS, T>::learn(
 
             T inv_sample_size = T{1} / static_cast<T>(current_batch_size);
 
+            #pragma omp parallel for
             for (size_t layer = 0; layer < NUM_LAYERS - 1; ++layer) 
             {
                 gradient_descent_step(biases[layer], deriv_biases[layer], inv_sample_size, step_size);
                 gradient_descent_step(weights[layer], deriv_weights[layer], inv_sample_size, step_size);
+            }
+
+            #pragma omp parallel for
+            for(size_t layer = 0; layer < NUM_LAYERS - 1; ++layer)
+            {
+                size_t input_size = neurons_per_layer[layer];
+                size_t output_size = neurons_per_layer[layer + 1];
+
+                for (size_t i = 0; i < output_size; ++i) {
+                    for (size_t j = 0; j < input_size; ++j) {
+                        transposed_weights[layer][j * output_size + i] = weights[layer][i * input_size + j];
+                    }
+                }
             }
         }
 
@@ -361,7 +389,7 @@ void network<Activation, NUM_LAYERS, T>::backward_pass(
             T tmp_value{};
 
             for(size_t k = 0; k < neurons_per_layer[layer + 2]; ++k){
-                tmp_value += weights[layer + 1][k * output_size + i] * deriv_biases[layer + 1][k];
+                tmp_value += transposed_weights[layer + 1][i * neurons_per_layer[layer + 2] + k] * deriv_biases[layer + 1][k];
             }
 
             deriv_biases[layer][i] = tmp_value * activation_func.derivative(weighted_inputs[layer][i]);
@@ -382,7 +410,7 @@ void network<Activation, NUM_LAYERS, T>::backward_pass(
         T tmp_value{};
 
         for(size_t k = 0; k < neurons_per_layer[2]; ++k){
-            tmp_value += weights[1][k * output_size + i] * deriv_biases[1][k];
+            tmp_value += transposed_weights[1][i * neurons_per_layer[2] + k] * deriv_biases[1][k];
         }
 
         deriv_biases[0][i] = tmp_value * activation_func.derivative(weighted_inputs[0][i]);
@@ -462,10 +490,23 @@ void network<Activation, NUM_LAYERS, T>::load(const std::string& filename)
         size_t bias_count = neurons_per_layer[layer + 1];
 
         weights[layer].resize(weight_count);
+        transposed_weights[layer].resize(weight_count);
         biases[layer].resize(bias_count);
 
         input.read(reinterpret_cast<char*>(weights[layer].data()), weight_count * sizeof(T));
         input.read(reinterpret_cast<char*>(biases[layer].data()), bias_count * sizeof(T));
+
+        for(size_t layer = 0; layer < NUM_LAYERS - 1; ++layer)
+        {
+            size_t input_size = neurons_per_layer[layer];
+            size_t output_size = neurons_per_layer[layer + 1];
+
+            for (size_t i = 0; i < output_size; ++i) {
+                for (size_t j = 0; j < input_size; ++j) {
+                    transposed_weights[layer][j * output_size + i] = weights[layer][i * input_size + j];
+                }
+            }
+        }
 
     }
 }

@@ -14,7 +14,7 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y meson ninja-build gcc g++
+          sudo apt-get install -y meson ninja-build gcc g++ libomp-dev
 
       - name: Setup and build with Meson
         working-directory: ./test
@@ -23,13 +23,16 @@ jobs:
           meson wrap install gtest
           meson setup builddir
 
-      - name: Run tests
+      - name: Run tests with OpenMP
         working-directory: ./test/builddir
+        env:
+          OMP_NUM_THREADS: 4
         run: meson test --logbase junit
 
-      - name: Upload JUnit test report
+      - name: Upload all test logs
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: junit-report
-          path: test/builddir/meson-logs/junit.txt
+          name: meson-logs
+          path: |
+            test/builddir/meson-logs/

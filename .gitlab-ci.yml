@@ -14,7 +14,7 @@ test:
     - meson setup builddir
   script:
     - cd ${CI_PROJECT_DIR}/test/builddir
-    - meson test --logbase junit
+    - OMP_NUM_THREADS=2 meson test --logbase junit
   artifacts:
     expire_in: 7 days
     when: always

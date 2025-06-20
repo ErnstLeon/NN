@@ -4,13 +4,14 @@
 #include <algorithm>
 #include <array>
 #include <cstring>
-#include <execution>
 #include <fstream>
 #include <iostream>
 #include <numeric>
 #include <random>
 #include <string>
 #include <vector>
+
+#include <Accelerate/Accelerate.h>
 
 #include "../learning/loss.hpp"
 #include "../learning/optimization.hpp"
@@ -276,10 +277,22 @@ std::vector<T> network<Activation, NUM_LAYERS, T>::evaluate(const std::vector<T>
         for(size_t i = 0; i < output_size; ++i)
         {
             T sum = biases[layer][i];
-            sum += std::transform_reduce(std::execution::par_unseq,
-                        weights[layer].begin() + i * input_size,
-                        weights[layer].begin() + (i + 1) * input_size,
-                        tmp_input.begin(), T(0));
+
+            const T* a = weights[layer].data() + i * input_size;
+            const T* b = tmp_input.data();
+            T result = static_cast<T>(0.0);
+
+            if constexpr (std::is_same_v<T, double>) {
+                vDSP_dotprD(a, 1, b, 1, &result, input_size);
+            } 
+            else if constexpr (std::is_same_v<T, float>){
+                vDSP_dotpr(a, 1, b, 1, &result, input_size);
+            }
+            else {
+                static_assert(std::is_same_v<T, void>, "Acceleration only for float or double type");
+            }
+
+            sum += result;
             tmp_output[i] = activation_func(sum);
         }
 
@@ -292,10 +305,22 @@ std::vector<T> network<Activation, NUM_LAYERS, T>::evaluate(const std::vector<T>
     for(size_t i = 0; i < output_size; ++i)
     {
         T sum = biases[NUM_LAYERS - 2][i];
-        sum += std::transform_reduce(std::execution::par_unseq,
-                        weights[NUM_LAYERS - 2].begin() + i * input_size,
-                        weights[NUM_LAYERS - 2].begin() + (i + 1) * input_size,
-                        tmp_input.begin(), T(0));
+        
+        const T* a = weights[NUM_LAYERS - 2].data() + i * input_size;
+        const T* b = tmp_input.data();
+        T result = static_cast<T>(0);
+
+        if constexpr (std::is_same_v<T, double>) {
+            vDSP_dotprD(a, 1, b, 1, &result, input_size);
+        } 
+        else if constexpr (std::is_same_v<T, float>){
+            vDSP_dotpr(a, 1, b, 1, &result, input_size);
+        }
+        else {
+            static_assert(std::is_same_v<T, void>, "Acceleration only for float or double type");
+        }
+        sum += result;
+
         tmp_output[i] = sum;
     }
 
@@ -322,10 +347,22 @@ void network<Activation, NUM_LAYERS, T>::forward_pass(
         for(size_t i = 0; i < output_size; ++i)
         {
             T sum = biases[layer][i];
-            sum += std::transform_reduce(std::execution::par_unseq,
-                        weights[layer].begin() + i * input_size,
-                        weights[layer].begin() + (i + 1) * input_size,
-                        (*tmp_input).begin(), T(0));
+            
+            const T* a = weights[layer].data() + i * input_size;
+            const T* b = tmp_input->data();
+            T result = static_cast<T>(0);
+
+            if constexpr (std::is_same_v<T, double>) {
+                vDSP_dotprD(a, 1, b, 1, &result, input_size);
+            } 
+            else if constexpr (std::is_same_v<T, float>) {
+                vDSP_dotpr(a, 1, b, 1, &result, input_size);
+            }
+            else {
+                static_assert(std::is_same_v<T, void>, "Acceleration only for float or double type");
+            }
+            
+            sum += result;
 
             weighted_inputs[layer][i] = sum;
         }
@@ -344,10 +381,21 @@ void network<Activation, NUM_LAYERS, T>::forward_pass(
     for(size_t i = 0; i < output_size; ++i)
     {
         T sum = biases[NUM_LAYERS - 2][i];
-        sum += std::transform_reduce(std::execution::par_unseq,
-                    weights[NUM_LAYERS - 2].begin() + i * input_size,
-                    weights[NUM_LAYERS - 2].begin() + (i + 1) * input_size,
-                    (*tmp_input).begin(), T(0));
+
+        const T* a = weights[NUM_LAYERS - 2].data() + i * input_size;
+        const T* b = tmp_input->data();
+        T result = static_cast<T>(0);
+
+        if constexpr (std::is_same_v<T, double>) {
+            vDSP_dotprD(a, 1, b, 1, &result, input_size);
+        } 
+        else if constexpr (std::is_same_v<T, float>) {
+            vDSP_dotpr(a, 1, b, 1, &result, input_size);
+        }
+        else {
+            static_assert(std::is_same_v<T, void>, "Acceleration only for float or double type");
+        }
+        sum += result;
 
         weighted_inputs[NUM_LAYERS - 2][i] = sum;
     }
@@ -388,9 +436,21 @@ void network<Activation, NUM_LAYERS, T>::backward_pass(
 
             T tmp_value{};
 
-            for(size_t k = 0; k < neurons_per_layer[layer + 2]; ++k){
-                tmp_value += transposed_weights[layer + 1][i * neurons_per_layer[layer + 2] + k] * deriv_biases[layer + 1][k];
+            const T* a = transposed_weights[layer + 1].data() + i * neurons_per_layer[layer + 2];
+            const T* b = deriv_biases[layer + 1].data();
+            T result = static_cast<T>(0);
+
+            if constexpr (std::is_same_v<T, double>) {
+                vDSP_dotprD(a, 1, b, 1, &result, neurons_per_layer[layer + 2]);
+            } 
+            else if constexpr (std::is_same_v<T, float>) {
+                vDSP_dotpr(a, 1, b, 1, &result, neurons_per_layer[layer + 2]);
             }
+            else {
+                static_assert(std::is_same_v<T, void>, "Acceleration only for float or double type");
+            }
+            
+            tmp_value += result;
 
             deriv_biases[layer][i] = tmp_value * activation_func.derivative(weighted_inputs[layer][i]);
 
@@ -409,9 +469,20 @@ void network<Activation, NUM_LAYERS, T>::backward_pass(
 
         T tmp_value{};
 
-        for(size_t k = 0; k < neurons_per_layer[2]; ++k){
-            tmp_value += transposed_weights[1][i * neurons_per_layer[2] + k] * deriv_biases[1][k];
+        const T* a = transposed_weights[1].data() + i * neurons_per_layer[2];
+        const T* b = deriv_biases[1].data();
+        T result = static_cast<T>(0);
+
+        if constexpr (std::is_same_v<T, double>) {
+            vDSP_dotprD(a, 1, b, 1, &result, neurons_per_layer[2]);
         }
+        else if constexpr (std::is_same_v<T, float>) {
+            vDSP_dotpr(a, 1, b, 1, &result, neurons_per_layer[2]);
+        }
+        else {
+            static_assert(std::is_same_v<T, void>, "Acceleration only for float or double type");
+        }
+        tmp_value += result;
 
         deriv_biases[0][i] = tmp_value * activation_func.derivative(weighted_inputs[0][i]);
 

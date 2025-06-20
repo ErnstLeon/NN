@@ -2,8 +2,9 @@
 #define OPTIMIZATION_H
 
 #include <cmath>
-#include <execution>
 #include <vector>
+
+#include <Accelerate/Accelerate.h>
 
 #include "../utility/debug.hpp"
 
@@ -19,9 +20,22 @@ inline void gradient_descent_step(std::vector<T> & value,
         throw std::invalid_argument("Gradient and parameters do not have same size.");
     }    
     
-    std::transform(std::execution::par_unseq, value.begin(), value.end(),
-                gradient.begin(), value.begin(),
-                [&](T val, T grad) { return val - learning_rate * grad * scaling;});
+    T tmp_value = - learning_rate * scaling;
+    T size = gradient.size();
+
+    std::vector<T> tmp_vector(size, 0);
+
+    if constexpr (std::is_same_v<T, double>) {
+        vDSP_vsmulD(gradient.data(), 1, &tmp_value, tmp_vector.data(), 1, size);
+        vDSP_vaddD(value.data(), 1, tmp_vector.data(), 1, value.data(), 1, size);
+    }
+    else if constexpr (std::is_same_v<T, float>) {
+        vDSP_vsmul(gradient.data(), 1, &tmp_value, tmp_vector.data(), 1, size);
+        vDSP_vadd(value.data(), 1, tmp_vector.data(), 1, value.data(), 1, size);
+    }
+    else {
+        static_assert(std::is_same_v<T, void>, "Acceleration only for float or double type");
+    }
 }
 }
 

@@ -112,7 +112,7 @@ brew install libomp
 2. Compile with OpenMP enabled:
 
 ```cpp
-g++ -Xpreprocessor -fopenmp -std=c++20 -O3 -Wall -march=native  -framework Accelerate -I../include -L/opt/homebrew/opt/libomp/lib -lomp -o main main.cpp
+g++ -std=c++20 -O3 -Wall -march=native -framework Accelerate  -Xpreprocessor -fopenmp -L/opt/homebrew/opt/libomp/lib -lomp -I../include -o main main.cpp
 ```
 
 :warning: use `export OMP_NUM_THREADS=` to adjust the number of threads to your system.

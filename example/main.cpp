@@ -36,10 +36,15 @@ int main (int argc, char ** argv)
     auto dataset_test = prepare_dataset<T>(images_test, labels_test);
 
     // initialising network
-    NN::network<NN::Sigmoid<float>, 4> network({rows_train * cols_train, 256, 256, 10}, true);
+    NN::network<NN::Sigmoid<T>, 4> network({rows_train * cols_train, 128, 128, 10}, true);
 
-    // training
-    T train_error = network.learn(dataset_train, 32, 50, 0.01);
+    // training either with Gradient Descent (stepsize)
+    //NN::Optimizer::Gradient_Descent<T> optmizer{0.001};
+
+    // training either with Adam (stepsize, beta1, beta2, eplsilon)
+    NN::Optimizer::Adam_Optimizer<T> optmizer{0.001, 0.9, 0.999, 1e-8};
+
+    T train_error = network.learn(dataset_train, optmizer, 16, 10);
     T test_error = network.assess(dataset_test);
     network.store("../models/MNIST_Sigmoid_4_Layers.out");
 
@@ -53,8 +58,8 @@ int main (int argc, char ** argv)
     // network.load("../models/MNIST_Sigmoid_4_Layers.out");
 
     // evaluating the first sample in test data set as example
-    size_t sample_id = 0;
-
+    size_t sample_id = 1;
+    
     auto label = network.evaluate(dataset_test[sample_id].first);
 
     auto max_iter = std::max_element(label.begin(), label.end());

@@ -27,15 +27,21 @@ NN::network<activation_function<datatype>, number_of_layers> network({neurons_pe
 #### Train the Network
 
 ```cpp
-train_error = network.learn(dataset_train, batch_size, number_of_epochs, learning_rate);
+// training either with Gradient Descent (stepsize)
+//NN::Optimizer::Gradient_Descent<T> optmizer{0.01};
+
+// training either with Adam (stepsize, beta1, beta2, eplsilon)
+NN::Optimizer::Adam_Optimizer<T> optmizer{0.01, 0.9, 0.999, 1e-8};
+
+train_error = network.learn(dataset_train, optimizer, batch_size, number_of_epochs);
 ```
 
 - `train_error`: the training error (cross-entropy loss) after the last optimization step.
 - `dataset_train`: a `std::vector<std::pair<std::vector<T>, std::vector<T>>>` of inputs and one-hot encoded labels.
+- `optimizer`:  An optimizer instance, either Gradient Descent or Adam.
 - `Parameters`:
     - `batch_size`: number of training samples per batch
     - `number_of_epochs`: how many times the full dataset is passed through the network
-    - `learning_rate`: step size for updating weights during training
 
 #### Evaluate Performance
 
@@ -57,9 +63,11 @@ label = network.evaluate(sample);
 
 #### Example (e.g. MNIST)
 ```cpp
-NN::network<NN::Sigmoid<float>, 4> network({784, 100, 100, 10}, true);
+NN::network<NN::Sigmoid<float>, 4> network({784, 128, 128, 10}, true);
 
-float train_error = network.learn(dataset_train, 32, 25, 0.01);
+NN::Optimizer::Adam_Optimizer<T> optmizer{0.001, 0.9, 0.999, 1e-8};
+
+float train_error = network.learn(dataset_train, optmizer, 32, 20);
 float test_error = network.assess(dataset_test);
 
 std::vector<float> label = network.evaluate(sample);
@@ -90,25 +98,35 @@ This example demonstrates:
 The model is available in `models/MNIST_Sigmoid_4_Layers.out`
 
 ```cpp
-g++ -I../include -std=c++20 -O3 -Wall -march=native -fopenmp (only if supported) -o main main.cpp
+g++ -I../include -std=c++20 -O3 -Wall -march=native -o main main.cpp
 ```
-
+- Add `-fopenmp` for parallel training (only if supported)
 ### Requirements
 
 - C++20 or later
 - OpenMP (optional, for parallel training)
 
-:warning: add `-fexperimental-library` when using `clang` as 'par_unseq' in 'std::execution' is not yet supported (apparently)
-
-```cpp
-g++ -I../include -std=c++20 -O3 -Wall -march=native -fexperimental-library -fopenmp (only if supported) -o main main.cpp
-```
-
-### Parallelization (optional)
+### Parallelization (optional, but highly recommended)
 
 Training uses OpenMP to parallelize gradient computations per sample within each batch.
+Compile with:
+
+```cpp
+g++ -fopenmp -I../include -std=c++20 -O3 -Wall -march=native -o main main.cpp
+```
 
 :warning: use `export OMP_NUM_THREADS=` to adjust the number of threads to your system.
+:warning: using clang on MacOS, you need to manually install OpenMP, for example using homebrew:
+
+```bash
+brew install libomp
+```
+
+and then compile with 
+
+```cpp
+g++ -Xpreprocessor -fopenmp -I../include -L/opt/homebrew/opt/libomp/lib -lomp -I../include -std=c++20 -O3 -Wall -march=native -o main main.cpp
+```
 
 ## Mathematical Details
 

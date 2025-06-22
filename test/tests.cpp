@@ -14,39 +14,6 @@ TEST(CrossEntropyLossTest, BasicTest) {
     EXPECT_NEAR(actual, expected, 1e-6);
 }
 
-TEST(GradientDescentStepTest, BasicUpdate) {
-    std::vector<double> value = {1.0, 2.0, 3.0};
-    std::vector<double> gradient = {0.1, 0.2, 0.3};
-
-    NN::gradient_descent_step(value, gradient, 0.1);
-
-    EXPECT_NEAR(value[0], 1.0 - 0.1 * 0.1, 1e-6);
-    EXPECT_NEAR(value[1], 2.0 - 0.1 * 0.2, 1e-6);
-    EXPECT_NEAR(value[2], 3.0 - 0.1 * 0.3, 1e-6);
-}
-
-TEST(GradientDescentStepTest, WithScaling) {
-    std::vector<double> value = {1.0, 2.0};
-    std::vector<double> gradient = {0.5, 1.0};
-    double lr = 0.1;
-    double scaling = 2.0;
-
-    NN::gradient_descent_step(value, gradient, lr, scaling);
-
-    EXPECT_NEAR(value[0], 1.0 - lr * 0.5 * scaling, 1e-6);
-    EXPECT_NEAR(value[1], 2.0 - lr * 1.0 * scaling, 1e-6);
-}
-
-TEST(GradientDescentStepTest, SizeMismatchThrowsInDebug) {
-    std::vector<double> value = {1.0, 2.0};
-    std::vector<double> gradient = {0.1};
-
-    EXPECT_THROW(
-        NN::gradient_descent_step(value, gradient, 0.1, 1.0, NN::Debug_Mode::Debug),
-        std::invalid_argument
-    );
-}
-
 TEST(ReLUActivation, ForwardAndDerivative) {
     NN::ReLU<double> relu;
 
@@ -114,7 +81,43 @@ TEST(NetworkTest, EvaluateOutputShape) {
     }
 }
 
+TEST(GDOptimizerTest, ConvergesToMinimum) {
+    
+    NN::Optimizer::Gradient_Descent<double> optimizer{0.1};
+
+    std::vector<double> value(1);
+    std::vector<double> gradient(1);
+
+    // function (x - 3)^2, derivate: 2(x - 3)
+    value[0] = static_cast<double>(0.0);
+    for (int step = 0; step < 1000; ++step) {
+        gradient[0] = 2 * (value[0] - 3);
+        optimizer.update(value, gradient);
+    }
+
+    EXPECT_NEAR(value[0], 3.0, 1e-4);
+}
+
+TEST(AdamOptimizerTest, ConvergesToMinimum) {
+    
+    NN::Optimizer::Adam_Optimizer<double> optimizer{0.1};
+
+    std::vector<double> value(1);
+    std::vector<double> gradient(1);
+
+    // function (x - 3)^2, derivate: 2(x - 3)
+    value[0] = static_cast<double>(0.0);
+    for (int step = 0; step < 1000; ++step) {
+        gradient[0] = 2 * (value[0] - 3);
+        optimizer.update(value, gradient);
+    }
+
+    EXPECT_NEAR(value[0], 3.0, 1e-4);
+}
+
 TEST(NetworkTest, LearnXOR) {
+
+    NN::Optimizer::Gradient_Descent<double> optimizer{0.5};
     NN::network<NN::Sigmoid<double>, 3> network({2, 10, 2}, true);
 
     std::vector<std::pair<std::vector<double>, std::vector<double>>> dataset = {
@@ -124,7 +127,7 @@ TEST(NetworkTest, LearnXOR) {
         {{1, 1}, {1, 0}},
     };
 
-    network.learn(dataset, 2, 500, 0.5);
+    network.learn(dataset, optimizer, 2, 500);
     auto out_00 = network.evaluate({0, 0});
     auto out_01 = network.evaluate({0, 1});
     auto out_10 = network.evaluate({1, 0});

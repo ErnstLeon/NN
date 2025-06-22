@@ -4,7 +4,6 @@
 #include <algorithm>
 #include <array>
 #include <cstring>
-#include <execution>
 #include <fstream>
 #include <iostream>
 #include <numeric>
@@ -95,7 +94,8 @@ public:
         }
     };
 
-    T learn(const std::vector<std::pair<std::vector<T>, std::vector<T>>> &, size_t, size_t num_epochs = 1000, T step_size = 0.01);
+    template<typename Optimizer>
+    T learn(const std::vector<std::pair<std::vector<T>, std::vector<T>>> &, Optimizer optimizer, size_t, size_t num_epochs = 1000);
     T assess(const std::vector<std::pair<std::vector<T>, std::vector<T>>> &) const;
     
     std::vector<T> evaluate(const std::vector<T> & input) const;
@@ -106,9 +106,10 @@ public:
 
 template<typename Activation, size_t NUM_LAYERS, typename T>
 requires callable_with<Activation, T, T> && derivative_callable_with<Activation, T, T> && (NUM_LAYERS >= 3)
+template<typename Optimizer>
 T network<Activation, NUM_LAYERS, T>::learn(
     const std::vector<std::pair<std::vector<T>, std::vector<T>>> & dataset_orig, 
-    size_t batch_size, size_t num_epochs, T step_size)
+    Optimizer optimizer, size_t batch_size, size_t num_epochs)
 {
     for(const auto & [input, true_output] : dataset_orig)
     {
@@ -132,6 +133,14 @@ T network<Activation, NUM_LAYERS, T>::learn(
         deriv_weights[i].assign(weights[i].size(), static_cast<T>(0));
     }
 
+    std::array<Optimizer, NUM_LAYERS - 1> weights_optimizers{};
+    std::array<Optimizer, NUM_LAYERS - 1> biases_optimizers{};
+
+    for (size_t i = 0; i < NUM_LAYERS - 1; ++i) {
+        weights_optimizers[i] = optimizer;
+        biases_optimizers[i] = optimizer;
+    }
+
     T train_error = static_cast<T>(0);
 
     train_error = assess(dataset_orig);
@@ -145,6 +154,7 @@ T network<Activation, NUM_LAYERS, T>::learn(
         {
             size_t current_batch_size = std::min(batch_size, dataset_size - b * batch_size);
 
+            // set derivates to zero for accumulation over samples
             for (size_t i = 0; i < NUM_LAYERS - 1; ++i) {
                 std::fill(deriv_biases[i].begin(), deriv_biases[i].end(), static_cast<T>(0));
                 std::fill(deriv_weights[i].begin(), deriv_weights[i].end(), static_cast<T>(0));
@@ -203,15 +213,24 @@ T network<Activation, NUM_LAYERS, T>::learn(
                 }
             }
 
+            // scale the gradient
             T inv_sample_size = T{1} / static_cast<T>(current_batch_size);
-
             #pragma omp parallel for
             for (size_t layer = 0; layer < NUM_LAYERS - 1; ++layer) 
             {
-                gradient_descent_step(biases[layer], deriv_biases[layer], inv_sample_size, step_size);
-                gradient_descent_step(weights[layer], deriv_weights[layer], inv_sample_size, step_size);
+                std::for_each(deriv_biases[layer].begin(), deriv_biases[layer].end(), [inv_sample_size](T & a){a *= inv_sample_size;});
+                std::for_each(deriv_weights[layer].begin(), deriv_weights[layer].end(), [inv_sample_size](T & a){a *= inv_sample_size;});
             }
 
+            // update parameters according to optimizer
+            #pragma omp parallel for
+            for (size_t layer = 0; layer < NUM_LAYERS - 1; ++layer) 
+            {
+                biases_optimizers[layer].update(biases[layer], deriv_biases[layer]);
+                weights_optimizers[layer].update(weights[layer], deriv_weights[layer]);
+            }
+
+            // update transposed weights
             #pragma omp parallel for
             for(size_t layer = 0; layer < NUM_LAYERS - 1; ++layer)
             {
@@ -276,7 +295,7 @@ std::vector<T> network<Activation, NUM_LAYERS, T>::evaluate(const std::vector<T>
         for(size_t i = 0; i < output_size; ++i)
         {
             T sum = biases[layer][i];
-            sum += std::transform_reduce(std::execution::par_unseq,
+            sum += std::transform_reduce(
                         weights[layer].begin() + i * input_size,
                         weights[layer].begin() + (i + 1) * input_size,
                         tmp_input.begin(), T(0));
@@ -292,7 +311,7 @@ std::vector<T> network<Activation, NUM_LAYERS, T>::evaluate(const std::vector<T>
     for(size_t i = 0; i < output_size; ++i)
     {
         T sum = biases[NUM_LAYERS - 2][i];
-        sum += std::transform_reduce(std::execution::par_unseq,
+        sum += std::transform_reduce(
                         weights[NUM_LAYERS - 2].begin() + i * input_size,
                         weights[NUM_LAYERS - 2].begin() + (i + 1) * input_size,
                         tmp_input.begin(), T(0));
@@ -322,7 +341,7 @@ void network<Activation, NUM_LAYERS, T>::forward_pass(
         for(size_t i = 0; i < output_size; ++i)
         {
             T sum = biases[layer][i];
-            sum += std::transform_reduce(std::execution::par_unseq,
+            sum += std::transform_reduce(
                         weights[layer].begin() + i * input_size,
                         weights[layer].begin() + (i + 1) * input_size,
                         (*tmp_input).begin(), T(0));
@@ -344,7 +363,7 @@ void network<Activation, NUM_LAYERS, T>::forward_pass(
     for(size_t i = 0; i < output_size; ++i)
     {
         T sum = biases[NUM_LAYERS - 2][i];
-        sum += std::transform_reduce(std::execution::par_unseq,
+        sum += std::transform_reduce(
                     weights[NUM_LAYERS - 2].begin() + i * input_size,
                     weights[NUM_LAYERS - 2].begin() + (i + 1) * input_size,
                     (*tmp_input).begin(), T(0));
